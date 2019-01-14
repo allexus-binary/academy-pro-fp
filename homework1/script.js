@@ -11,73 +11,64 @@ const orders = [
     { name: 'Window', price: 300, date: '2018-05-05' },
 ];
 
-const addPrefix = (price) => '$' + price;
+const pipe = (...fns) => x => fns.reduce((v, f) => f(v), x);
+const append = (parent, child) => { parent.appendChild(child); return parent; };
+const appendHTML = (node, html) => { node.innerHTML = html; return node; }
+
+const addPricePrefix = (price) => '$' + price;
 const capitalizeName = (name) => name.charAt(0).toUpperCase() + name.slice(1);
+const parseOrderData = (order) => capitalizeName(order.name) + ' - ' + addPricePrefix(order.price);
+
 const validateOrder = (order) => order && order.name && order.price && order.date;
 const getValidOrders = (orders) => orders.filter(validateOrder);
 const getInvalidOrders = (orders) => orders.filter(order => !validateOrder(order));
+const sortOrdersByDate = (orders) => orders.sort((a, b) => new Date(a.date) - new Date(b.date));
+const getRowsCount = (groupedOrders) => Object.keys(groupedOrders).reduce((prev, key) => 
+    groupedOrders[key].length > prev ? groupedOrders[key].length : prev, 0);
+const groupOrdersByDate = (orders) => orders.reduce((prev, curr) => Object.assign(prev, {
+    [curr.date]: [...prev[curr.date] || [], curr]}), {});
 
-const groupOrdersByDate = (orders) => {
-    let groupedOrders = {};
-    orders.forEach(order => {
-        groupedOrders = Object.assign(groupedOrders, {
-            [order.date]: [...groupedOrders[order.date] || [], order]
-        });
-    });
+const renderOrdersTableHeader = (groupedOrders) => Object.keys(groupedOrders).reduce((prev, key) => {
+    const th = document.createElement('th');
+    th.innerHTML = key;
+    prev.appendChild(th);
+    return prev;
+}, document.createElement('tr'));
 
-    return groupedOrders;
-}
-const renderValidOrders = (validOrders) => {
+const renderOrdersTable = (groupedOrders) => {
     const table = document.createElement('table');
-
-    const groupedOrders = groupOrdersByDate(validOrders);
-
-    const headerRow = table.appendChild(document.createElement('tr'));
-    Object.keys(groupedOrders).map((key) => {
-        const column = document.createElement('th');
-        column.innerHTML = key;
-        headerRow.appendChild(column);
-    });
-
-    Object.keys(groupedOrders).map((key) => {
-        const orders = groupedOrders[key];
-        
-    });
-
-
-    // add grouping
-    // add sorting
-    // add row rendering
+    table.appendChild(renderOrdersTableHeader(groupedOrders));
+    
+    for (let i = 0; i < getRowsCount(groupedOrders); i++) {
+        table.appendChild(Object.keys(groupedOrders).map((key) => {
+            const orders = groupedOrders[key];
+            const element = document.createElement('td');
+            element.innerHTML = orders[i] ? parseOrderData(orders[i]) : '';
+            return element;
+        }).reduce((prev, curr) => {
+            prev.appendChild(curr);
+            return prev;
+        }, document.createElement('tr')));
+    }
 
     return table;
-};
-
-const renderInvalidOrder = (order) => {
-    const element = document.createElement('code');
-    element.innerHTML = JSON.stringify(order);
-
-    return element;
 }
 
-const renderInvalidOrders = (invalidOrders) => {
-    const list = document.createElement('div');
-    const header = document.createElement('h2');
-    header.innerHTML = 'Incorrect rows';
+const renderValidOrders = pipe(
+    sortOrdersByDate,
+    groupOrdersByDate,
+    renderOrdersTable
+);
 
-    list.appendChild(header);
+const renderInvalidOrder = (order) => appendHTML(document.createElement('code'), JSON.stringify(order));
 
-    invalidOrders.map(renderInvalidOrder)
-        .forEach(element => {
-            list.appendChild(element)
-                .appendChild(document.createElement('br'));
-        });
-
-    return list;
-};
+const renderInvalidOrders = (invalidOrders) => invalidOrders.reduce((prev, curr) => 
+    append(append(prev, renderInvalidOrder(curr)), document.createElement('br')),
+    append(document.createElement('div'), appendHTML(document.createElement('h2'), 'Incorrect rows'))
+);
 
 const renderOrdersMatrix = (orders) => {    
-    document.body.appendChild(renderValidOrders(getValidOrders(orders)))
-        .appendChild(renderInvalidOrders(getInvalidOrders(orders)));
+    append(append(document.body, renderValidOrders(getValidOrders(orders))), renderInvalidOrders(getInvalidOrders(orders)));
 }
 
 renderOrdersMatrix(orders);
